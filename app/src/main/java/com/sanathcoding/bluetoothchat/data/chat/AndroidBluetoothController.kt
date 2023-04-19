@@ -2,8 +2,10 @@ package com.sanathcoding.bluetoothchat.data.chat
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import com.sanathcoding.bluetoothchat.domain.chat.BluetoothController
 import com.sanathcoding.bluetoothchat.domain.chat.BluetoothDeviceDomain
@@ -33,20 +35,40 @@ class AndroidBluetoothController(
     override val pairedDevice: StateFlow<List<BluetoothDeviceDomain>>
         get() = _pairedDevices.asStateFlow()
 
+    // When new device found
+    private val foundDeviceReceiver = FoundDeviceReceiver { device ->
+        _scannedDevices.update {existingDevices ->
+            val newDevice = device.toBluetoothDeviceDomain()
+            if (newDevice in existingDevices) existingDevices
+            else existingDevices + newDevice
+        }
+    }
+
     init {
         updatePairedDevice()
     }
 
     override fun startDiscovery() {
-        TODO("Not yet implemented")
+        if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN)) return
+
+        // register the receiver
+        context.registerReceiver(
+            foundDeviceReceiver,
+            IntentFilter(BluetoothDevice.ACTION_FOUND)
+        )
+
+        updatePairedDevice()
+        bluetoothAdapter?.startDiscovery()
     }
 
     override fun stopDiscovery() {
-        TODO("Not yet implemented")
+        if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN)) return
+
+        bluetoothAdapter?.cancelDiscovery()
     }
 
     override fun release() {
-        TODO("Not yet implemented")
+        context.unregisterReceiver(foundDeviceReceiver)
     }
 
     private fun updatePairedDevice() {
